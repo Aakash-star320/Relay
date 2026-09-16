@@ -1,77 +1,27 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CollectionsSidebar } from "../collections/CollectionsSidebar.jsx";
 import { RequestLibrary } from "../collections/RequestLibrary.jsx";
-import { createCollection, createSavedRequest, loadWorkspace, updateSavedRequest } from "../collections/collections.api.js";
+import { createCollection, createSavedRequest, deleteCollection, deleteSavedRequest, duplicateSavedRequest, loadWorkspace, reorderCollection, reorderSavedRequest, updateCollection, updateSavedRequest } from "../collections/collections.api.js";
 import { RequestEditorShell } from "../requests/RequestEditorShell.jsx";
 import { ResponsePanelShell } from "../responses/ResponsePanelShell.jsx";
+import { Dialog } from "../../shared/components/Dialog.jsx";
 import { WorkspaceHeader } from "./WorkspaceHeader.jsx";
+import { loadEnvironments } from "../environments/environments.api.js";
 
 const DESKTOP_BREAKPOINT = 920;
-const MIN_RESPONSE_HEIGHT_PERCENT = 10;
-const MAX_RESPONSE_HEIGHT_PERCENT = 90;
+function NameDialog({ initialValue = "", label, onClose, onSave, title }) { const [value, setValue] = useState(initialValue); return <Dialog confirmLabel="Save" onClose={onClose} onConfirm={() => value.trim() && onSave(value.trim())} open title={title}><label className="dialog-field">{label}<input autoFocus value={value} onChange={(event) => setValue(event.target.value)} /></label></Dialog>; }
 
 export function RelayWorkspace({ account, onLogout }) {
-	const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= DESKTOP_BREAKPOINT);
-	const [activeSection, setActiveSection] = useState("collections");
-	const [execution, setExecution] = useState(null);
-	const [isExecuting, setIsExecuting] = useState(false);
-	const [isResizingPanels, setIsResizingPanels] = useState(false);
-	const [responseHeight, setResponseHeight] = useState(50);
-	const [workspace, setWorkspace] = useState({ collections: [], requests: [] });
-	const [savedRequest, setSavedRequest] = useState(null);
-	const workspaceMainRef = useRef(null);
-
-	useEffect(() => {
-		const mediaQuery = window.matchMedia(`(min-width: ${DESKTOP_BREAKPOINT}px)`);
-		const updateSidebar = (event) => setSidebarOpen(event.matches);
-		mediaQuery.addEventListener("change", updateSidebar);
-		return () => mediaQuery.removeEventListener("change", updateSidebar);
-	}, []);
-
-	const refreshWorkspace = async () => setWorkspace(await loadWorkspace());
-	useEffect(() => { refreshWorkspace().catch(() => setWorkspace({ collections: [], requests: [] })); }, []);
-
-	useEffect(() => {
-		if (!isResizingPanels) return undefined;
-		const stopResizing = () => setIsResizingPanels(false);
-		window.addEventListener("pointermove", resizeWorkspacePanels);
-		window.addEventListener("pointerup", stopResizing, { once: true });
-		window.addEventListener("pointercancel", stopResizing, { once: true });
-		return () => {
-			window.removeEventListener("pointermove", resizeWorkspacePanels);
-			window.removeEventListener("pointerup", stopResizing);
-			window.removeEventListener("pointercancel", stopResizing);
-		};
-	}, [isResizingPanels]);
-
-	const selectSection = (section) => {
-		setActiveSection(section);
-		if (window.innerWidth < DESKTOP_BREAKPOINT) setSidebarOpen(false);
-	};
-	const handleCreateCollection = async () => { const name = window.prompt("Collection name"); if (name?.trim()) { await createCollection(name.trim()); await refreshWorkspace(); } };
-	const handleSaveRequest = async (draft, currentSavedRequest, collectionId) => { const name = currentSavedRequest?.name || window.prompt("Request name", "New request"); if (!name?.trim()) return; const input = { ...draft, name: name.trim(), collectionId }; const saved = currentSavedRequest ? await updateSavedRequest(currentSavedRequest._id, input) : await createSavedRequest(input); setSavedRequest(saved); await refreshWorkspace(); };
-
-	const resizeWorkspacePanels = (event) => {
-		const workspaceBounds = workspaceMainRef.current?.getBoundingClientRect();
-		if (!workspaceBounds) return;
-		const requestedResponseHeight = workspaceBounds.bottom - event.clientY;
-		const requestedPercentage = Math.round((requestedResponseHeight / workspaceBounds.height) * 100);
-		setResponseHeight(Math.min(Math.max(requestedPercentage, MIN_RESPONSE_HEIGHT_PERCENT), MAX_RESPONSE_HEIGHT_PERCENT));
-	};
-
-	const startPanelResize = (event) => {
-		event.preventDefault();
-		resizeWorkspacePanels(event);
-		setIsResizingPanels(true);
-	};
-
-	return (
-		<div className="relay-shell" id="workspace">
-			<WorkspaceHeader account={account} onLogout={onLogout} onToggleSidebar={() => setSidebarOpen((current) => !current)} />
-			<div className={`workspace-body ${sidebarOpen ? "sidebar-visible" : ""}`}>
-				<CollectionsSidebar activeSection={activeSection} open={sidebarOpen} onClose={() => setSidebarOpen(false)} onSelectSection={selectSection} workspace={workspace} onCreateCollection={handleCreateCollection} onOpenRequest={setSavedRequest} />
-				{activeSection === "requests" ? <main className="workspace-library"><RequestLibrary collections={workspace.collections} requests={workspace.requests} onOpenRequest={(request) => { setSavedRequest(request); setActiveSection("collections"); }} /></main> : <main className={`workspace-main ${isResizingPanels ? "is-resizing" : ""}`} ref={workspaceMainRef} style={{ gridTemplateRows: `minmax(0, ${100 - responseHeight}fr) 12px minmax(0, ${responseHeight}fr)` }}><RequestEditorShell collections={workspace.collections} savedRequest={savedRequest} onNewRequest={() => setSavedRequest(null)} onSaveRequest={handleSaveRequest} onExecutionResult={(result) => { setExecution(result); setIsExecuting(false); }} onExecutionStart={() => { setExecution(null); setIsExecuting(true); }} /><div aria-label="Resize request and response panels" className="workspace-splitter" role="separator" tabIndex={0} onPointerDown={startPanelResize} /><ResponsePanelShell execution={execution} isExecuting={isExecuting} responseHeight={responseHeight} onResponseHeightChange={setResponseHeight} /></main>}
-			</div>
-		</div>
-	);
+	const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= DESKTOP_BREAKPOINT); const [activeSection, setActiveSection] = useState("collections"); const [execution, setExecution] = useState(null); const [isExecuting, setIsExecuting] = useState(false); const [responseHeight, setResponseHeight] = useState(50); const [workspace, setWorkspace] = useState({ collections: [], requests: [] }); const [environments, setEnvironments] = useState([]); const [environmentId, setEnvironmentId] = useState(null); const [savedRequest, setSavedRequest] = useState(null); const [isDirty, setIsDirty] = useState(false); const [draft, setDraft] = useState(null); const [dialog, setDialog] = useState(null); const [pendingNavigation, setPendingNavigation] = useState(null); const workspaceMainRef = useRef(null);
+	const refreshWorkspace = useCallback(async () => setWorkspace(await loadWorkspace()), []);
+	useEffect(() => { refreshWorkspace().catch(() => setWorkspace({ collections: [], requests: [] })); }, [refreshWorkspace]);
+	useEffect(() => { loadEnvironments().then(setEnvironments).catch(() => setEnvironments([])); }, []);
+	useEffect(() => { const query = window.matchMedia(`(min-width: ${DESKTOP_BREAKPOINT}px)`); const update = (event) => setSidebarOpen(event.matches); query.addEventListener("change", update); return () => query.removeEventListener("change", update); }, []);
+	const navigate = (action) => { if (isDirty) { setPendingNavigation(() => action); setDialog({ type: "unsaved" }); } else action(); };
+	const openRequest = (item) => navigate(() => { setSavedRequest(item); setActiveSection("collections"); });
+	const saveRequest = async (requestDraft = draft, item = savedRequest, collectionId = null) => { if (!requestDraft) return; if (item?._id) { const saved = await updateSavedRequest(item._id, { ...requestDraft, name: item.name, collectionId: item.collectionId }); setSavedRequest(saved); await refreshWorkspace(); } else setDialog({ type: "save-new", draft: requestDraft, collectionId }); };
+	const saveNamed = async (name, requestDraft, collectionId) => { const saved = await createSavedRequest({ ...requestDraft, name, collectionId }); setSavedRequest(saved); await refreshWorkspace(); setDialog(null); };
+	const moveInList = async (item, targetIndex, items, reorder) => { const remaining = items.filter((entry) => entry._id !== item._id); await reorder(item._id, { previousId: remaining[targetIndex - 1]?._id || null, nextId: remaining[targetIndex]?._id || null }); await refreshWorkspace(); };
+	const requestCount = dialog?.collection ? workspace.requests.filter((item) => String(item.collectionId) === String(dialog.collection._id)).length : 0;
+	return <div className="relay-shell" id="workspace"><WorkspaceHeader account={account} onLogout={onLogout} onToggleSidebar={() => setSidebarOpen((current) => !current)} /><div className={`workspace-body ${sidebarOpen ? "sidebar-visible" : ""}`}><CollectionsSidebar activeSection={activeSection} open={sidebarOpen} onClose={() => setSidebarOpen(false)} onSelectSection={(section) => { setActiveSection(section); if (window.innerWidth < DESKTOP_BREAKPOINT) setSidebarOpen(false); }} workspace={workspace} onCreateCollection={() => setDialog({ type: "create-collection" })} onOpenRequest={openRequest} onCollectionAction={(collection, collectionIndex) => setDialog({ type: "collection-actions", collection, collectionIndex })} />{activeSection === "requests" ? <main className="workspace-library"><RequestLibrary collections={workspace.collections} requests={workspace.requests} onOpenRequest={openRequest} onDuplicate={async (item) => { const copy = await duplicateSavedRequest(item._id); await refreshWorkspace(); openRequest(copy); }} onDelete={(item) => setDialog({ type: "delete-request", request: item })} onRename={(item) => setDialog({ type: "rename-request", request: item })} onMove={(item) => setDialog({ type: "move-request", request: item, collectionId: item.collectionId || "" })} onReorder={(item, index, siblings) => moveInList(item, index, siblings, reorderSavedRequest)} /></main> : <main className="workspace-main" ref={workspaceMainRef} style={{ gridTemplateRows: `minmax(0, ${100 - responseHeight}fr) minmax(0, ${responseHeight}fr)` }}><RequestEditorShell collections={workspace.collections} savedRequest={savedRequest} onNewRequest={() => navigate(() => setSavedRequest(null))} onSaveCopy={(requestDraft, item, collectionId) => setDialog({ type: "save-copy", draft: requestDraft, item, collectionId })} onSaveRequest={saveRequest} onDirtyChange={setIsDirty} onDraftChange={setDraft} onExecutionResult={(result) => { setExecution(result); setIsExecuting(false); }} onExecutionStart={() => { setExecution(null); setIsExecuting(true); }} /><ResponsePanelShell execution={execution} isExecuting={isExecuting} responseHeight={responseHeight} onResponseHeightChange={setResponseHeight} /></main>}</div>{dialog?.type === "create-collection" && <NameDialog label="Collection name" onClose={() => setDialog(null)} onSave={async (name) => { await createCollection(name); await refreshWorkspace(); setDialog(null); }} title="Create collection" />}{dialog?.type === "rename-request" && <NameDialog initialValue={dialog.request.name} label="Request name" onClose={() => setDialog(null)} onSave={async (name) => { await updateSavedRequest(dialog.request._id, { name }); if (savedRequest?._id === dialog.request._id) setSavedRequest((current) => ({ ...current, name })); await refreshWorkspace(); setDialog(null); }} title="Rename request" />}{dialog?.type === "save-new" && <NameDialog initialValue="New request" label="Request name" onClose={() => setDialog(null)} onSave={(name) => saveNamed(name, dialog.draft, dialog.collectionId)} title="Save request" />}{dialog?.type === "save-copy" && <NameDialog initialValue={`${dialog.item.name} copy`} label="Copy name" onClose={() => setDialog(null)} onSave={(name) => saveNamed(name, dialog.draft, dialog.collectionId)} title="Save request copy" />}{dialog?.type === "save-new-and-switch" && <NameDialog initialValue="New request" label="Request name" onClose={() => { setDialog(null); setPendingNavigation(null); }} onSave={async (name) => { await saveNamed(name, dialog.draft, dialog.collectionId); const action = pendingNavigation; setPendingNavigation(null); action?.(); }} title="Save before switching" />}{dialog?.type === "delete-request" && <Dialog confirmLabel="Delete request" isDanger onClose={() => setDialog(null)} onConfirm={async () => { await deleteSavedRequest(dialog.request._id); if (savedRequest?._id === dialog.request._id) setSavedRequest(null); await refreshWorkspace(); setDialog(null); }} open title="Delete request"><p>Delete “{dialog.request.name}”? This cannot be undone.</p></Dialog>}{dialog?.type === "move-request" && <Dialog confirmLabel="Move request" onClose={() => setDialog(null)} onConfirm={async () => { await updateSavedRequest(dialog.request._id, { collectionId: dialog.collectionId || null }); if (savedRequest?._id === dialog.request._id) setSavedRequest((current) => ({ ...current, collectionId: dialog.collectionId || null })); await refreshWorkspace(); setDialog(null); }} open title="Move request"><label className="dialog-field">Destination<select value={dialog.collectionId} onChange={(event) => setDialog((current) => ({ ...current, collectionId: event.target.value }))}><option value="">Unfiled requests</option>{workspace.collections.map((collection) => <option key={collection._id} value={collection._id}>{collection.name}</option>)}</select></label></Dialog>}{dialog?.type === "collection-actions" && <Dialog onClose={() => setDialog(null)} open title={dialog.collection.name}><div className="dialog-choice-actions"><button disabled={dialog.collectionIndex === 0} type="button" onClick={async () => { await moveInList(dialog.collection, dialog.collectionIndex - 1, workspace.collections, reorderCollection); setDialog(null); }}>Move collection up</button><button disabled={dialog.collectionIndex === workspace.collections.length - 1} type="button" onClick={async () => { await moveInList(dialog.collection, dialog.collectionIndex + 1, workspace.collections, reorderCollection); setDialog(null); }}>Move collection down</button><button type="button" onClick={() => setDialog({ type: "rename-collection", collection: dialog.collection })}>Rename collection</button><button className="danger-text" type="button" onClick={() => setDialog({ type: "delete-collection", collection: dialog.collection })}>Delete collection</button></div></Dialog>}{dialog?.type === "rename-collection" && <NameDialog initialValue={dialog.collection.name} label="Collection name" onClose={() => setDialog(null)} onSave={async (name) => { await updateCollection(dialog.collection._id, { name }); await refreshWorkspace(); setDialog(null); }} title="Rename collection" />}{dialog?.type === "delete-collection" && <Dialog confirmLabel="Delete collection" isDanger onClose={() => setDialog(null)} onConfirm={async () => { await deleteCollection(dialog.collection._id); await refreshWorkspace(); setDialog(null); }} open title="Delete collection"><p>Delete “{dialog.collection.name}” and its {requestCount} saved {requestCount === 1 ? "request" : "requests"}? This cannot be undone.</p></Dialog>}{dialog?.type === "unsaved" && <Dialog onClose={() => { setDialog(null); setPendingNavigation(null); }} open title="Unsaved changes"><p>Your edits have not been saved. Choose what to do before switching requests.</p><div className="dialog-choice-actions"><button className="primary-button" type="button" onClick={async () => { if (!savedRequest) { setDialog({ type: "save-new-and-switch", draft, collectionId: null }); return; } await saveRequest(); const action = pendingNavigation; setDialog(null); setPendingNavigation(null); action?.(); }}>Save and switch</button><button className="secondary-button" type="button" onClick={() => { const action = pendingNavigation; setDialog(null); setPendingNavigation(null); action?.(); }}>Discard changes</button><button className="secondary-button" type="button" onClick={() => { setDialog(null); setPendingNavigation(null); }}>Keep editing</button></div></Dialog>}</div>;
 }

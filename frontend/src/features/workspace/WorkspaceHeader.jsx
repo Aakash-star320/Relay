@@ -2,15 +2,23 @@ import { useEffect, useRef, useState } from "react";
 import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
 import { applyTheme, readTheme } from "../../shared/utils/theme.js";
 import { BrandMark } from "./BrandMark.jsx";
+import { loadEnvironments } from "../environments/environments.api.js";
+import { createEnvironment, deleteEnvironment, updateEnvironment } from "../environments/environments.api.js";
+import { Dialog } from "../../shared/components/Dialog.jsx";
 
 function getInitials(name = "") {
 	return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join("");
 }
 
-export function WorkspaceHeader({ account, onLogout, onToggleSidebar }) {
+export function WorkspaceHeader({ account, environments = [], environmentId, onEnvironmentChange, onLogout, onToggleSidebar }) {
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [theme, setTheme] = useState(() => applyTheme(readTheme()));
 	const menuRef = useRef(null);
+	const [availableEnvironments, setAvailableEnvironments] = useState(environments);
+	const [selectedEnvironmentId, setSelectedEnvironmentId] = useState(environmentId || sessionStorage.getItem("relay-environment-id") || "");
+	const [managerOpen, setManagerOpen] = useState(false);
+	const [editingEnvironment, setEditingEnvironment] = useState(null);
+	useEffect(() => { loadEnvironments().then(setAvailableEnvironments).catch(() => setAvailableEnvironments(environments)); }, [environments]);
 
 	useEffect(() => {
 		if (!menuOpen) return undefined;
@@ -29,6 +37,7 @@ export function WorkspaceHeader({ account, onLogout, onToggleSidebar }) {
 	}, [menuOpen]);
 
 	const selectTheme = (nextTheme) => setTheme(applyTheme(nextTheme));
+	const saveEnvironment = async () => { const name = editingEnvironment?.name?.trim(); const variables = (editingEnvironment?.variables || []).filter((variable) => variable.key.trim()); if (!name) return; const saved = editingEnvironment._id ? await updateEnvironment(editingEnvironment._id, { name, variables }) : await createEnvironment({ name, variables }); const next = editingEnvironment._id ? availableEnvironments.map((item) => item._id === saved._id ? saved : item) : [...availableEnvironments, saved]; setAvailableEnvironments(next); setSelectedEnvironmentId(saved._id); sessionStorage.setItem("relay-environment-id", saved._id); setManagerOpen(false); };
 
 	return (
 		<header className="workspace-header">
@@ -39,7 +48,7 @@ export function WorkspaceHeader({ account, onLogout, onToggleSidebar }) {
 			<div className="workspace-context">
 				<span className="context-label">Personal workspace</span>
 				<span className="context-separator" aria-hidden="true" />
-				<button className="environment-button" disabled type="button"><span>No environment</span><MaterialIcon size={18}>arrow_drop_down</MaterialIcon></button>
+				<div className="environment-selector"><label className="environment-button"><span className="sr-only">Selected environment</span><select value={selectedEnvironmentId} onChange={(event) => { const nextId = event.target.value; setSelectedEnvironmentId(nextId); sessionStorage.setItem("relay-environment-id", nextId); onEnvironmentChange?.(nextId || null); }}><option value="">No environment</option>{availableEnvironments.map((environment) => <option key={environment._id} value={environment._id}>{environment.name}</option>)}</select><MaterialIcon size={18}>arrow_drop_down</MaterialIcon></label><button className="environment-manage-button" type="button" onClick={() => { setEditingEnvironment(availableEnvironments.find((item) => item._id === selectedEnvironmentId) || { name: "", variables: [] }); setManagerOpen(true); }}>Manage</button></div>
 			</div>
 			<div className="account-menu-anchor" ref={menuRef}>
 				<button aria-expanded={menuOpen} aria-haspopup="menu" aria-label="Open account menu" className="account-button" type="button" onClick={() => setMenuOpen((current) => !current)}>{getInitials(account.name)}</button>
@@ -54,6 +63,7 @@ export function WorkspaceHeader({ account, onLogout, onToggleSidebar }) {
 					</div>
 				)}
 			</div>
+			{managerOpen && <Dialog confirmLabel="Save environment" onClose={() => setManagerOpen(false)} onConfirm={saveEnvironment} open title="Environment"><div className="environment-form"><label>Name<input value={editingEnvironment.name} onChange={(event) => setEditingEnvironment((current) => ({ ...current, name: event.target.value }))} /></label>{editingEnvironment.variables.map((variable, index) => <div className="environment-variable" key={index}><input placeholder="Variable" value={variable.key} onChange={(event) => setEditingEnvironment((current) => ({ ...current, variables: current.variables.map((item, itemIndex) => itemIndex === index ? { ...item, key: event.target.value } : item) }))} /><input placeholder="Value" value={variable.value} onChange={(event) => setEditingEnvironment((current) => ({ ...current, variables: current.variables.map((item, itemIndex) => itemIndex === index ? { ...item, value: event.target.value } : item) }))} /><button type="button" onClick={() => setEditingEnvironment((current) => ({ ...current, variables: current.variables.filter((_, itemIndex) => itemIndex !== index) }))}>Remove</button></div>)}<button className="add-row-button" type="button" onClick={() => setEditingEnvironment((current) => ({ ...current, variables: [...current.variables, { key: "", value: "" }] }))}>Add variable</button>{editingEnvironment._id && <button className="danger-text" type="button" onClick={async () => { await deleteEnvironment(editingEnvironment._id); setAvailableEnvironments((current) => current.filter((item) => item._id !== editingEnvironment._id)); setSelectedEnvironmentId(""); sessionStorage.removeItem("relay-environment-id"); setManagerOpen(false); }}>Delete environment</button>}</div></Dialog>}
 		</header>
 	);
 }

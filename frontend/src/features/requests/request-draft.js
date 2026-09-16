@@ -11,5 +11,6 @@ export function createInitialRequestDraft() {
 		params: [],
 		headers: [{ id: crypto.randomUUID(), key: "Accept", value: "application/json", enabled: true }],
 		body: { type: "none", content: "" },
+		auth: { type: "none", token: "", username: "", password: "", key: "", value: "", addTo: "header" },
 	};
 }

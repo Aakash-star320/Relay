@@ -29,6 +29,9 @@ export function reserveExecutionSlot(accountId, executionId) {
 	const accountLimit = getAccountLimit(accountId);
 	removeExpiredRequestStarts(accountLimit.requestStartTimes, now);
 
+	if (accountLimit.activeExecutionIds.has(executionId)) {
+		throw new AppError(409, "DUPLICATE_EXECUTION", "This execution is already in progress.");
+	}
 	if (accountLimit.activeExecutionIds.size >= MAX_ACTIVE_EXECUTIONS) {
 		throw new AppError(429, "ACTIVE_EXECUTION_LIMIT", `You can run up to ${MAX_ACTIVE_EXECUTIONS} requests at once.`);
 	}

@@ -1,14 +1,28 @@
-import crypto from "crypto";
 import { executeHttpRequest } from "./http-execution.client.js";
 import { releaseExecutionSlot, reserveExecutionSlot } from "./execution-limits.service.js";
 
+const activeExecutions = new Map();
+
+function executionKey(accountId, executionId) {
+	return `${accountId}:${executionId}`;
+}
+
 export async function executeRequest(accountId, draft) {
-	const executionId = crypto.randomUUID();
+	const executionId = draft.executionId;
 	reserveExecutionSlot(accountId, executionId);
+	const abortController = new AbortController();
+	activeExecutions.set(executionKey(accountId, executionId), abortController);
 	try {
-		return { executionId, ...(await executeHttpRequest(draft)) };
+		return { executionId, ...(await executeHttpRequest(draft, abortController)) };
 	} finally {
-		// Each execution owns a distinct Set entry, so simultaneous completions each release one slot.
+		activeExecutions.delete(executionKey(accountId, executionId));
 		releaseExecutionSlot(accountId, executionId);
 	}
+}
+
+export function cancelExecution(accountId, executionId) {
+	const abortController = activeExecutions.get(executionKey(accountId, executionId));
+	if (!abortController || abortController.signal.aborted) return false;
+	abortController.abort("cancelled");
+	return true;
 }

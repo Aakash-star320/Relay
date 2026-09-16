@@ -1,5 +1,11 @@
 import { request } from "../../shared/api/client.js";
 export const loadWorkspace = () => request("/collections");
 export const createCollection = (name) => request("/collections", { method: "POST", body: JSON.stringify({ name }) });
+export const updateCollection = (collectionId, changes) => request(`/collections/${collectionId}`, { method: "PATCH", body: JSON.stringify(changes) });
+export const deleteCollection = (collectionId) => request(`/collections/${collectionId}`, { method: "DELETE" });
+export const reorderCollection = (collectionId, position) => request(`/collections/${collectionId}/order`, { method: "PATCH", body: JSON.stringify(position) });
 export const createSavedRequest = (savedRequest) => request("/collections/requests", { method: "POST", body: JSON.stringify(savedRequest) });
 export const updateSavedRequest = (requestId, savedRequest) => request(`/collections/requests/${requestId}`, { method: "PATCH", body: JSON.stringify(savedRequest) });
+export const deleteSavedRequest = (requestId) => request(`/collections/requests/${requestId}`, { method: "DELETE" });
+export const duplicateSavedRequest = (requestId) => request(`/collections/requests/${requestId}/duplicate`, { method: "POST" });
+export const reorderSavedRequest = (requestId, position) => request(`/collections/requests/${requestId}/order`, { method: "PATCH", body: JSON.stringify(position) });

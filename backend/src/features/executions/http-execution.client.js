@@ -1,10 +1,39 @@
 import { AppError } from "../../shared/errors/app-error.js";
+import { lookup } from "node:dns/promises";
+import net from "node:net";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const MAX_RESPONSE_BYTES = 1_000_000;
 const RUNTIME_CONTROLLED_HEADERS = new Set(["host", "content-length"]);
 
-function buildTargetUrl(urlValue, params) {
+function isBlockedIpv4(address) {
+	const octets = address.split(".").map(Number);
+	return octets[0] === 0 || octets[0] === 10 || octets[0] === 127 ||
+		(octets[0] === 169 && octets[1] === 254) ||
+		(octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+		(octets[0] === 192 && octets[1] === 168);
+}
+
+function isBlockedIpAddress(address) {
+	if (net.isIP(address) === 4) return isBlockedIpv4(address);
+	const normalizedAddress = address.toLowerCase();
+	return normalizedAddress === "::" || normalizedAddress === "::1" || normalizedAddress.startsWith("fc") || normalizedAddress.startsWith("fd") || normalizedAddress.startsWith("fe80:");
+}
+
+async function assertSafeDestination(targetUrl) {
+	const hostname = targetUrl.hostname.toLowerCase();
+	if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") return;
+	if (net.isIP(hostname)) {
+		if (isBlockedIpAddress(hostname)) throw new AppError(400, "UNSAFE_DESTINATION", "This destination is not allowed.");
+		return;
+	}
+	let addresses;
+	try { addresses = await lookup(hostname, { all: true, verbatim: true }); }
+	catch { throw new AppError(400, "DESTINATION_UNRESOLVABLE", "Relay could not resolve the target host."); }
+	if (addresses.some(({ address }) => isBlockedIpAddress(address))) throw new AppError(400, "UNSAFE_DESTINATION", "This destination is not allowed.");
+}
+
+async function buildTargetUrl(urlValue, params) {
 	let targetUrl;
 	try {
 		targetUrl = new URL(urlValue);
@@ -14,6 +43,7 @@ function buildTargetUrl(urlValue, params) {
 	if (!["http:", "https:"].includes(targetUrl.protocol)) throw new AppError(400, "INVALID_URL", "Only HTTP and HTTPS URLs are supported.");
 	if (targetUrl.username || targetUrl.password) throw new AppError(400, "INVALID_URL", "URLs cannot include credentials.");
 	for (const parameter of params) if (parameter.enabled && parameter.key) targetUrl.searchParams.append(parameter.key, parameter.value);
+	await assertSafeDestination(targetUrl);
 	return targetUrl;
 }
 
@@ -25,6 +55,13 @@ function buildRequestHeaders(headerRows, body) {
 	}
 	if (body.type === "json" && !headers.has("content-type")) headers.set("content-type", "application/json");
 	return headers;
+}
+
+function applyAuthentication(targetUrl, headers, auth) {
+	if (!auth || ["none", "inherit"].includes(auth.type)) return;
+	if (auth.type === "bearer") headers.set("authorization", `Bearer ${auth.token || ""}`);
+	if (auth.type === "basic") headers.set("authorization", `Basic ${Buffer.from(`${auth.username || ""}:${auth.password || ""}`).toString("base64")}`);
+	if (auth.type === "apiKey") { if (auth.addTo === "query") targetUrl.searchParams.set(auth.key || "apiKey", auth.value || ""); else headers.set(auth.key || "x-api-key", auth.value || ""); }
 }
 
 function validateBody(body) {
@@ -74,11 +111,11 @@ function responseContentType(headers) {
 	return headers.get("content-type") || "";
 }
 
-export async function executeHttpRequest(draft) {
-	const targetUrl = buildTargetUrl(draft.url, draft.params);
+export async function executeHttpRequest(draft, abortController) {
+	const targetUrl = await buildTargetUrl(draft.url, draft.params);
 	const headers = buildRequestHeaders(draft.headers, draft.body);
+	applyAuthentication(targetUrl, headers, draft.auth);
 	const body = validateBody(draft.body);
-	const abortController = new AbortController();
 	const timeout = setTimeout(() => abortController.abort("timeout"), DEFAULT_TIMEOUT_MS);
 	const startedAt = performance.now();
 	try {
@@ -91,7 +128,9 @@ export async function executeHttpRequest(draft) {
 			durationMs: Math.round(performance.now() - startedAt),
 		};
 	} catch (error) {
-		const wasTimeout = abortController.signal.aborted && abortController.signal.reason === "timeout";
-		return { kind: "error", request: { method: draft.method, url: targetUrl.toString() }, error: { code: wasTimeout ? "REQUEST_TIMEOUT" : "CONNECTION_FAILED", message: wasTimeout ? "The target did not respond within 15 seconds." : "Relay could not connect to the target API." }, durationMs: Math.round(performance.now() - startedAt) };
+		const abortReason = abortController.signal.reason;
+		const wasTimeout = abortController.signal.aborted && abortReason === "timeout";
+		const wasCancelled = abortController.signal.aborted && abortReason === "cancelled";
+		return { kind: "error", request: { method: draft.method, url: targetUrl.toString() }, error: { code: wasCancelled ? "REQUEST_CANCELLED" : wasTimeout ? "REQUEST_TIMEOUT" : "CONNECTION_FAILED", message: wasCancelled ? "The request was cancelled." : wasTimeout ? "The target did not respond within 15 seconds." : "Relay could not connect to the target API." }, durationMs: Math.round(performance.now() - startedAt) };
 	} finally { clearTimeout(timeout); }
 }

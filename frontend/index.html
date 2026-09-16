@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<script>
+			document.documentElement.dataset.theme = localStorage.getItem("relay-theme") === "light" ? "light" : "dark";
+		</script>
+		<meta charset="UTF-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="theme-color" content="#101419" media="(prefers-color-scheme: dark)" />
+		<meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)" />
+		<title>Relay — API Workspace</title>
+		<style>
+			html, body, #root { width: 100%; min-width: 320px; min-height: 100%; margin: 0; }
+			body { background: #101419; }
+			html[data-theme="light"] body, html[data-theme="light"] .initial-relay-boot { background: #f4f6f8; }
+			html[data-theme="light"] .initial-relay-boot { color: #17202a; }
+			.initial-relay-boot { display: grid; position: fixed; inset: 0; place-content: center; gap: 22px; background: #101419; color: #f5f7fa; font-family: Arial, sans-serif; }
+			.initial-relay-brand { display: flex; align-items: center; gap: 13px; font-size: 25px; font-weight: 600; }
+			.initial-relay-mark { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 13px; background: #ff6b35; color: #111418; font-size: 24px; font-weight: 800; }
+			.initial-relay-progress { width: 146px; height: 3px; margin: 0 auto; overflow: hidden; border-radius: 2px; background: #28323d; }
+			.initial-relay-progress::after { display: block; width: 42%; height: 100%; border-radius: inherit; background: #ff8a5c; content: ""; animation: initial-progress 900ms ease-in-out infinite; }
+			@keyframes initial-progress { 0% { transform: translateX(-110%); } 50% { transform: translateX(95%); } 100% { transform: translateX(310%); } }
+			@media (prefers-reduced-motion: reduce) { .initial-relay-progress::after { animation: none; transform: translateX(70%); } }
+		</style>
+	</head>
+	<body>
+		<div id="root"><main class="initial-relay-boot" aria-hidden="true"><div class="initial-relay-brand"><span class="initial-relay-mark">R</span><span>Relay</span></div><div class="initial-relay-progress"></div></main></div>
+		<script type="module" src="/src/main.jsx"></script>
+	</body>
+</html>

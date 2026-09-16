@@ -4,6 +4,8 @@ Build Your Own Postman App. AI Transcript Logging
 
 This file is the single source of truth for any coding agent working in this repo: Claude Code, OpenAI Codex CLI / Codex Cloud, Google Gemini CLI, Google Antigravity, Cursor, Windsurf, opencode, Aider, goose, Factory, RooCode, JetBrains Junie, GitHub Copilot, Devin, or any other AGENTS.md-aware tool.
 
+Application code must also follow `CODING_STANDARDS.md`. That file supplements this contract; this file and the other project contract documents take precedence if any instruction conflicts.
+
 Read this file in full before taking any action. Obey it exactly.
 
 ---

@@ -1,19 +1,81 @@
-# Build Your Own Postman
+# Relay
 
-Build a full-stack React + Express (Node/MERN) Postman-inspired API app with five to ten end-to-end features for creating, organizing, sending, and analyzing HTTP requests, backed by MongoDB and a polished, accessible UI. The app must preserve the sample calendar repo's stack, install/build/start cleanly, and satisfy the acceptance criteria and verifier.
+Relay is a developer workspace for building, organizing, executing, and analyzing HTTP requests. The current Phase 1 implementation provides account sign-in and the responsive workspace shell. Request execution and collection behavior are the next implementation phases; controls for those features remain disabled in the shell.
 
-The app will be built in this repository, following the guidelines given. Start by reading the files in the order below.
+## Technology
 
-## Read in this order
+- React 19 and Vite 8 for the frontend
+- Express 5 on Bun for the backend API
+- MongoDB and Mongoose for persistence
+- Zod for API input validation
+- JWT and bcrypt for account authentication
+- Bun workspaces and the committed `bun.lock` for installation
+- The repository's existing Prettier configuration for JavaScript formatting
 
-1. **[REQUIREMENTS.md](REQUIREMENTS.md)** says what to build. The feature list, the acceptance criteria, and the submission checklist.
-2. **[INSTRUCTIONS.md](INSTRUCTIONS.md)** says how to start and how to keep the repo clean. It identifies the Node calendar repo to clone and study, along with the server setup rules, dependency rules, and code hygiene.
-3. **[AGENTS.md](AGENTS.md)** turns on transcript logging for this app repository. Read it before you open an AI assistant; it records every turn to a log file that you later export under `/transcripts`.
-4. **[GUIDELINES.md](GUIDELINES.md)** is the acceptance contract. Every rule the verifier checks is written here.
-5. **[skills/validate/SKILL.md](skills/validate/SKILL.md)** is the verifier. Run it when you are done. It audits structure, stack, dependencies, install, build, start, API behavior, and MongoDB persistence, and it must pass before you submit.
+## Structure
 
-## Sample repo
+```text
+.
+├── frontend/
+│   ├── src/features/       # Login, workspace, request, response, and navigation UI
+│   └── src/shared/         # API client, theme, and reusable UI
+├── backend/
+│   └── src/
+│       ├── features/auth/  # Account login and session API
+│       ├── scripts/        # Deterministic demo-account seed
+│       └── shared/         # MongoDB, configuration, auth, and errors
+├── .vscode/launch.json     # Debug configuration
+├── hackerrank.yml          # Authoritative install and run commands
+├── setup.sh                # Local environment and database preparation
+├── CODING_STANDARDS.md     # Supplemental code organization and quality rules
+├── GUIDELINES.md           # Assignment acceptance contract
+└── skills/validate/        # Submission verifier
+```
 
-| Stack | Repo |
-|---|---|
-| React + Express (MERN) | https://github.com/ProblemSetters/coderepo-react-node-calendar |
+## Prerequisites
+
+- Bun 1.3 or later
+- MongoDB 8.0 or later, reachable at `127.0.0.1:27017`
+- Bash for `setup.sh` (Git Bash on Windows)
+
+MongoDB runs as a separate local service. The backend uses the `MONGODB_URI` from `backend/.env`, which setup creates from `backend/.env.example`. The default database is `relay_db`. Setup generates a random local JWT signing secret when it creates the environment file; local `.env` files are ignored by Git.
+
+## Run
+
+From the repository root:
+
+```bash
+bun install
+bun start
+```
+
+`bun start` runs `setup.sh --start`, checks MongoDB, restores the seeded database state, then starts the frontend on port `3000` and backend on port `8000`. The frontend proxies `/api` to the backend. MongoDB health is available at `http://localhost:8000/api/v1/health`.
+
+The exact HackerRank install command is:
+
+```bash
+bun install && bash setup.sh --seed
+```
+
+The exact HackerRank run command is `bun start`.
+
+## Seeded access
+
+```text
+Email: alex.morgan@relay.dev
+Password: password123
+```
+
+A second seeded account is `jordan.smith@relay.dev` with the same demo password. Each account signs in directly; there is no profile-selection step. The seed script replaces the Relay demo accounts each time the complete application starts. Running only the backend development watcher does not reset the database.
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `bun start` | Seed MongoDB and start the complete application. |
+| `bun run seed` | Reset Relay demo accounts in MongoDB. |
+| `bun run dev:backend` | Start the Express API with Bun's watcher. |
+| `bun run dev:frontend` | Start the Vite frontend. |
+| `cd frontend && bun run build` | Build the production frontend. |
+
+The frontend and backend are structured by feature. Backend HTTP handlers, business rules, and database operations remain separate so later request, collection, environment, history, and runner features can be added without changing the approved stack.

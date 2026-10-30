@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 
 const rowSchema = new mongoose.Schema({ id: String, key: String, value: String, enabled: Boolean }, { _id: false });
+const assertionSchema = new mongoose.Schema({ id: String, type: String, operator: String, expected: String, path: String }, { _id: false });
+const extractionSchema = new mongoose.Schema({ id: String, path: String, variable: String }, { _id: false });
 const savedRequestSchema = new mongoose.Schema({
 	accountId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
 	collectionId: { type: mongoose.Schema.Types.ObjectId, default: null, index: true },
@@ -10,6 +12,8 @@ const savedRequestSchema = new mongoose.Schema({
 	params: { type: [rowSchema], default: [] }, headers: { type: [rowSchema], default: [] },
 	body: { type: { type: String, enum: ["none", "json", "text"], default: "none" }, content: { type: String, default: "" } },
 	auth: { type: { type: String, enum: ["inherit", "none", "bearer", "basic", "apiKey"], default: "inherit" }, token: { type: String, default: "" }, username: { type: String, default: "" }, password: { type: String, default: "" }, key: { type: String, default: "" }, value: { type: String, default: "" }, addTo: { type: String, enum: ["header", "query"], default: "header" } },
+	assertions: { type: [assertionSchema], default: [] },
+	extractions: { type: [extractionSchema], default: [] },
 }, { timestamps: true, versionKey: false });
 savedRequestSchema.index({ accountId: 1, collectionId: 1, sortOrder: 1 });
 export const SavedRequest = mongoose.model("SavedRequest", savedRequestSchema);

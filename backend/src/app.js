@@ -9,6 +9,7 @@ import { executionRouter } from "./features/executions/execution.routes.js";
 import { collectionsRouter } from "./features/collections/collections.routes.js";
 import { environmentsRouter } from "./features/environments/environments.routes.js";
 import { historyRouter } from "./features/history/history.routes.js";
+import { runRouter } from "./features/runs/run.routes.js";
 import { errorHandler, notFoundHandler } from "./shared/middleware/error-handler.js";
 
 const publicDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
@@ -28,6 +29,7 @@ export function createApp() {
     app.use("/api/v1/collections", collectionsRouter);
     app.use("/api/v1/environments", environmentsRouter);
     app.use("/api/v1/history", historyRouter);
+    app.use("/api/v1/runs", runRouter);
     app.use("/demo", demoRouter);
     app.use(notFoundHandler);
     app.use(errorHandler);

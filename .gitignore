@@ -1,13 +1,18 @@
 node_modules/
-.bun-tmp/
-package-lock.json
-.mongodb/
+.env
+.env.*
+!.env.example
 dist/
 build/
-.env
-.env.local
+coverage/
 *.log
-.DS_Store
 
-CLAUDE.md
-.claude/
+# HackerRank / challenge-only material
+AGENTS.md
+CODING_STANDARDS.md
+GUIDELINES.md
+INSTRUCTIONS.md
+REQUIREMENTS.md
+hackerrank.yml
+setup.sh
+README.md

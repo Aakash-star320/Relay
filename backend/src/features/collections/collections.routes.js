@@ -4,11 +4,12 @@ import { requireWorkspaceAuth } from "../../shared/middleware/auth.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import { ApiCollection } from "./collection.model.js";
 import { SavedRequest } from "./saved-request.model.js";
+import { assertionSchema, extractionSchema } from "../executions/execution.schema.js";
 
 const router = Router();
 const row = z.object({ id: z.string(), key: z.string(), value: z.string(), enabled: z.boolean() });
 const auth = z.object({ type: z.enum(["inherit", "none", "bearer", "basic", "apiKey"]), token: z.string().max(5000).optional(), username: z.string().max(5000).optional(), password: z.string().max(5000).optional(), key: z.string().max(500).optional(), value: z.string().max(5000).optional(), addTo: z.enum(["header", "query"]).optional() });
-const draft = z.object({ method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]), url: z.string().min(1).max(8000), params: z.array(row).max(100), headers: z.array(row).max(100), body: z.object({ type: z.enum(["none", "json", "text"]), content: z.string().max(100000) }), auth: auth.optional() });
+const draft = z.object({ method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]), url: z.string().min(1).max(8000), params: z.array(row).max(100), headers: z.array(row).max(100), body: z.object({ type: z.enum(["none", "json", "text"]), content: z.string().max(100000) }), auth: auth.optional(), assertions: z.array(assertionSchema).max(20).default([]), extractions: z.array(extractionSchema).max(20).default([]) });
 const requestInput = draft.extend({ name: z.string().min(1).max(120), collectionId: z.string().nullable().optional() });
 const collectionInput = z.object({ name: z.string().min(1).max(120), description: z.string().max(500).optional(), auth: auth.optional() });
 const accountId = (request) => String(request.account._id);

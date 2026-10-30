@@ -7,6 +7,7 @@ import { ResponsePanelShell } from "../responses/ResponsePanelShell.jsx";
 import { Dialog } from "../../shared/components/Dialog.jsx";
 import { WorkspaceHeader } from "./WorkspaceHeader.jsx";
 import { loadEnvironments } from "../environments/environments.api.js";
+import { RunnerPanel } from "../runs/RunnerPanel.jsx";
 
 const DESKTOP_BREAKPOINT = 920;
 function NameDialog({ initialValue = "", label, onClose, onSave, title }) { const [value, setValue] = useState(initialValue); return <Dialog confirmLabel="Save" onClose={onClose} onConfirm={() => value.trim() && onSave(value.trim())} open title={title}><label className="dialog-field">{label}<input autoFocus value={value} onChange={(event) => setValue(event.target.value)} /></label></Dialog>; }
